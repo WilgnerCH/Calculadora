@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Calculadora de Juros Compostos</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cleave.js@1/dist/cleave.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f6fa;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background-color: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h2 {
+      text-align: center;
+      color: #2f3640;
+    }
+
+    label {
+      display: block;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    input[type="text"], input[type="number"], select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      margin-top: 20px;
+      width: 100%;
+      padding: 12px;
+      background-color: #44bd32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #4cd137;
+    }
+
+    .resultado {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #dcdde1;
+      border-radius: 5px;
+      text-align: center;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    canvas {
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Calculadora de Juros Compostos</h2>
+
+    <label for="valorInicial">Valor Inicial (R$):</label>
+    <input type="text" id="valorInicial" placeholder="Ex: 10.000,00" />
+
+    <label for="aporteMensal">Aporte Mensal (R$):</label>
+    <input type="text" id="aporteMensal" placeholder="Ex: 500,00" />
+
+    <label for="taxaJuros">Taxa de Juros:</label>
+    <input type="number" id="taxaJuros" step="0.01" placeholder="Ex: 1.5" />
+
+    <label for="tipoJuros">Tipo de Juros:</label>
+    <select id="tipoJuros" onchange="ajustarPeriodo()">
+      <option value="anual" selected>Anual</option>
+      <option value="mensal">Mensal</option>
+    </select>
+
+    <label for="periodo">Período (<span id="unidadePeriodo">anos</span>):</label>
+    <input type="number" id="periodo" placeholder="Ex: 10" />
+
+    <button onclick="calcularJurosCompostos()">Calcular</button>
+
+    <div class="resultado" id="resultado">
+      Preencha os campos acima e clique em "Calcular".
+    </div>
+
+    <canvas id="graficoPatrimonio" width="400" height="200"></canvas>
+  </div>
+
+  <script>
+    function formatarMoeda(valor) {
+      return valor.toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      });
+    }
+
+    function desformatarMoeda(valor) {
+      if (!valor) return 0;
+      return parseFloat(valor.replace(/\./g, '').replace(',', '.')) || 0;
+    }
+
+    window.onload = function () {
+      new Cleave('#valorInicial', {
+        numeral: true,
+        numeralThousandsGroupStyle: 'thousand',
+        delimiter: '.',
+        numeralDecimalMark: ',',
+        numeralDecimalScale: 2
+      });
+
+      new Cleave('#aporteMensal', {
+        numeral: true,
+        numeralThousandsGroupStyle: 'thousand',
+        delimiter: '.',
+        numeralDecimalMark: ',',
+        numeralDecimalScale: 2
+      });
+    };
+
+    function ajustarPeriodo() {
+      const tipoJuros = document.getElementById('tipoJuros').value;
+      const unidade = document.getElementById('unidadePeriodo');
+      unidade.textContent = tipoJuros === 'anual' ? 'anos' : 'meses';
+    }
+
+    function calcularJurosCompostos() {
+      const valorInicial = desformatarMoeda(document.getElementById('valorInicial').value);
+      const aporteMensal = desformatarMoeda(document.getElementById('aporteMensal').value);
+      let taxa = parseFloat(document.getElementById('taxaJuros').value) / 100;
+      const tipoJuros = document.getElementById('tipoJuros').value;
+      let periodo = parseInt(document.getElementById('periodo').value);
+
+      if (!valorInicial || !taxa || !periodo) {
+        document.getElementById('resultado').innerText = 'Preencha todos os campos corretamente.';
+        return;
+      }
+
+      if (tipoJuros === 'anual') {
+        taxa = Math.pow(1 + taxa, 1 / 12) - 1;
+        periodo = periodo * 12;
+      }
+
+      let montante = valorInicial;
+      const dadosGrafico = [];
+
+      for (let i = 1; i <= periodo; i++) {
+        montante *= (1 + taxa);
+        montante += aporteMensal;
+        dadosGrafico.push(montante);
+      }
+
+      document.getElementById('resultado').innerText =
+        `Valor final após ${periodo} meses: ${formatarMoeda(montante)}`;
+
+      desenharGrafico(dadosGrafico);
+    }
+
+    let grafico;
+    function desenharGrafico(dados) {
+      const ctx = document.getElementById('graficoPatrimonio').getContext('2d');
+
+      if (grafico) grafico.destroy();
+
+      grafico = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: dados.map((_, i) => i + 1),
+          datasets: [{
+            label: 'Patrimônio Acumulado (R$)',
+            data: dados,
+            borderColor: '#44bd32',
+            backgroundColor: 'rgba(68, 189, 50, 0.1)',
+            borderWidth: 2,
+            tension: 0.2,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              ticks: {
+                callback: function (value) {
+                  return formatarMoeda(value);
+                }
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Meses'
+              }
+            }
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  return formatarMoeda(context.parsed.y);
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
